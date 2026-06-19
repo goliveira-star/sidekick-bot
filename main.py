@@ -6,24 +6,19 @@ from datetime import datetime, timezone
 # ── CONFIG ────────────────────────────────────────────────
 # Map your Discord channel names → language labels
 CHANNEL_LANGUAGE_MAP = {
-    "arabic-reports":    "Arabic",
-    "spanish-reports":   "Spanish",
-    "portuguese-reports":"Portuguese",
-    "french-reports":    "French",
-    "turkish-reports":   "Turkish",
-    "polish-reports":    "Polish",
-    "korean-reports":    "Korean",
-    "russian-reports":   "Russian",
+    "arabic":            "Arabic",
+    "french":            "French",
+    "german":            "German",
+    "korean":            "Korean",
+    "polish":            "Polish",
+    "russian":           "Russian",
+    "spanish":           "Spanish",
+    "turkish":           "Turkish",
+    "japanese":          "Japanese",
+    "other-moderation":  "Other",
+    "indian":            "Indian",
 }
 
-# Map emojis → verdict
-EMOJI_VERDICT_MAP = {
-    "🚩": "Needs Investigation",
-    "⚠️": "Needs Investigation",
-    "✅": "Cleared",
-    "👍": "Cleared",
-    "❓": "Unclear",
-}
 # ─────────────────────────────────────────────────────────
 
 intents = discord.Intents.default()
@@ -49,7 +44,7 @@ def ensure_csv_headers():
     if not os.path.exists(REACTIONS_FILE):
         with open(REACTIONS_FILE, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["message_id", "member", "emoji", "verdict",
+            writer.writerow(["message_id", "member", "emoji",
                              "reacted_at", "response_time_minutes", "language", "subject"])
 
 
@@ -112,7 +107,6 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
     posted_at, language, subject = report_posts[payload.message_id]
     emoji_str = str(payload.emoji)
-    verdict = EMOJI_VERDICT_MAP.get(emoji_str, "Unknown")
     reacted_at = datetime.now(timezone.utc)
     response_minutes = round((reacted_at - posted_at).total_seconds() / 60, 1)
 
@@ -122,14 +116,13 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             payload.message_id,
             str(member),
             emoji_str,
-            verdict,
             reacted_at.isoformat(),
             response_minutes,
             language,
             subject,
         ])
 
-    print(f"Logged: {member} reacted {emoji_str} ({verdict}) in {language} "
+    print(f"Logged: {member} reacted {emoji_str} in {language} "
           f"— {response_minutes} min response time")
 
 
