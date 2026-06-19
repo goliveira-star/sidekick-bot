@@ -1,27 +1,59 @@
 import discord
-import csv
 import os
+import json
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timezone
 
-# ── CONFIG ────────────────────────────────────────────────
-# Map your Discord channel names → language labels
-CHANNEL_LANGUAGE_MAP = {
-    "arabic":            "Arabic",
-    "french":            "French",
-    "german":            "German",
-    "korean":            "Korean",
-    "polish":            "Polish",
-    "russian":           "Russian",
-    "spanish":           "Spanish",
-    "turkish":           "Turkish",
-    "japanese":          "Japanese",
-    "other-moderation":  "Other",
-    "indian":            "Indian",
-}
+import gspread
+from google.oauth2.service_account import Credentials
 
+# ── CONFIG ────────────────────────────────────────────────
+CHANNEL_LANGUAGE_MAP = {
+    "arabic":           "Arabic",
+    "french":           "French",
+    "german":           "German",
+    "korean":           "Korean",
+    "polish":           "Polish",
+    "russian":          "Russian",
+    "spanish":          "Spanish",
+    "turkish":          "Turkish",
+    "japanese":         "Japanese",
+    "other-moderation": "Other",
+    "indian":           "Indian",
+}
 # ─────────────────────────────────────────────────────────
+
+# Google Sheets setup
+def init_sheets():
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+    spreadsheet_id = os.environ.get("SPREADSHEET_ID")
+    creds_dict = json.loads(creds_json)
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    gc = gspread.authorize(creds)
+    spreadsheet = gc.open_by_key(spreadsheet_id)
+
+    # Get or create the two sheets
+    try:
+        reports_ws = spreadsheet.worksheet("Reports")
+    except gspread.WorksheetNotFound:
+        reports_ws = spreadsheet.add_worksheet("Reports", rows=10000, cols=6)
+        reports_ws.append_row(["message_id", "channel", "language", "subject", "posted_at"])
+
+    try:
+        reactions_ws = spreadsheet.worksheet("Reactions")
+    except gspread.WorksheetNotFound:
+        reactions_ws = spreadsheet.add_worksheet("Reactions", rows=10000, cols=7)
+        reactions_ws.append_row(["message_id", "member", "emoji", "reacted_at",
+                                  "response_time_minutes", "language", "subject"])
+    return reports_ws, reactions_ws
+
+
+reports_ws, reactions_ws = init_sheets()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -30,35 +62,17 @@ intents.reactions = True
 
 client = discord.Client(intents=intents)
 
-# In-memory store: message_id → (posted_at, channel_language, subject)
+# In-memory store: message_id → (posted_at, language, subject)
 report_posts = {}
-
-REPORTS_FILE  = "reports.csv"
-REACTIONS_FILE = "reactions.csv"
-
-
-def ensure_csv_headers():
-    if not os.path.exists(REPORTS_FILE):
-        with open(REPORTS_FILE, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["message_id", "channel", "language", "subject", "posted_at"])
-
-    if not os.path.exists(REACTIONS_FILE):
-        with open(REACTIONS_FILE, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["message_id", "member", "emoji",
-                             "reacted_at", "response_time_minutes", "language", "subject"])
 
 
 def parse_subject(message: discord.Message) -> str:
-    """Extract the report reason from the message text or embeds."""
     content = message.content or ""
     for embed in message.embeds:
         if embed.description:
             content += " " + embed.description
         for field in embed.fields:
             content += " " + field.name + " " + field.value
-
     lower = content.lower()
     subjects = [
         "violence", "terrorism", "nudity", "pornography", "hate speech",
@@ -73,26 +87,25 @@ def parse_subject(message: discord.Message) -> str:
 
 @client.event
 async def on_ready():
-    ensure_csv_headers()
     print(f"Logged in as {client.user} — Watching report channels.")
 
 
 @client.event
 async def on_message(message: discord.Message):
     channel_name = message.channel.name if hasattr(message.channel, "name") else ""
-    print(f"[DEBUG] Message in channel: '{channel_name}' from {message.author}")
     language = CHANNEL_LANGUAGE_MAP.get(channel_name)
     if not language:
-        return  # not a report channel we care about
+        return
 
     subject = parse_subject(message)
     posted_at = message.created_at.replace(tzinfo=timezone.utc)
     report_posts[message.id] = (posted_at, language, subject)
 
-    with open(REPORTS_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([message.id, channel_name, language, subject,
-                         posted_at.isoformat()])
+    reports_ws.append_row([
+        str(message.id), channel_name, language, subject,
+        posted_at.isoformat()
+    ])
+    print(f"Logged report: {subject} in {language}")
 
 
 @client.event
@@ -113,20 +126,16 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     reacted_at = datetime.now(timezone.utc)
     response_minutes = round((reacted_at - posted_at).total_seconds() / 60, 1)
 
-    with open(REACTIONS_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            payload.message_id,
-            str(member),
-            emoji_str,
-            reacted_at.isoformat(),
-            response_minutes,
-            language,
-            subject,
-        ])
-
-    print(f"Logged: {member} reacted {emoji_str} in {language} "
-          f"— {response_minutes} min response time")
+    reactions_ws.append_row([
+        str(payload.message_id),
+        str(member),
+        emoji_str,
+        reacted_at.isoformat(),
+        response_minutes,
+        language,
+        subject,
+    ])
+    print(f"Logged: {member} reacted {emoji_str} in {language} — {response_minutes} min")
 
 
 class _Health(BaseHTTPRequestHandler):
