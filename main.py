@@ -1,6 +1,8 @@
 import discord
 import csv
 import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timezone
 
 # ── CONFIG ────────────────────────────────────────────────
@@ -125,6 +127,17 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     print(f"Logged: {member} reacted {emoji_str} in {language} "
           f"— {response_minutes} min response time")
 
+
+class _Health(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, *args):
+        pass
+
+port = int(os.environ.get("PORT", 8080))
+threading.Thread(target=lambda: HTTPServer(("0.0.0.0", port), _Health).serve_forever(), daemon=True).start()
 
 token = os.environ.get("DISCORD_TOKEN")
 if not token:
