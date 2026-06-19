@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Side Kicks Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  header { padding: 28px 32px 0; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  header h1 span { color: #53fc18; }
+  #last-updated { font-size: 12px; color: #555; }
+
+  .grid { display: grid; gap: 16px; padding: 24px 32px; }
+  .stats { grid-template-columns: repeat(4, 1fr); }
+  .charts-top { grid-template-columns: 1fr 1fr; }
+  .charts-bottom { grid-template-columns: 2fr 1fr; }
+
+  .card {
+    background: #141414;
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #555; margin-bottom: 8px; }
+
+  /* Stat cards */
+  .stat-value { font-size: 36px; font-weight: 700; color: #53fc18; line-height: 1; }
+  .stat-sub { font-size: 12px; color: #444; margin-top: 6px; }
+
+  /* Chart cards */
+  .chart-card { position: relative; }
+  .chart-wrap { position: relative; height: 260px; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; color: #555; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #1e1e1e; }
+  td { padding: 9px 12px; border-bottom: 1px solid #1a1a1a; color: #ccc; }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { color: #fff; font-weight: 500; }
+  .emoji-cell { font-size: 18px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; background: #1e2e1e; color: #53fc18; }
+
+  #loading { position: fixed; inset: 0; background: #0a0a0a; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 99; }
+  #loading p { color: #555; font-size: 14px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid #1e1e1e; border-top-color: #53fc18; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #error { display: none; padding: 20px 32px; }
+  #error .card { border-color: #3a1a1a; background: #1a0a0a; color: #ff6b6b; }
+
+  @media (max-width: 900px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .charts-top, .charts-bottom { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>Loading dashboard…</p>
+</div>
+
+<div id="error"><div class="card" id="error-msg"></div></div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>Side Kicks <span>Dashboard</span></h1>
+    <span id="last-updated"></span>
+  </header>
+
+  <!-- Stat cards -->
+  <div class="grid stats">
+    <div class="card">
+      <h2>Total Reports</h2>
+      <div class="stat-value" id="total-reports">—</div>
+      <div class="stat-sub">messages logged</div>
+    </div>
+    <div class="card">
+      <h2>Total Reactions</h2>
+      <div class="stat-value" id="total-reactions">—</div>
+      <div class="stat-sub">by all members</div>
+    </div>
+    <div class="card">
+      <h2>Active Members</h2>
+      <div class="stat-value" id="active-members">—</div>
+      <div class="stat-sub">who have reacted</div>
+    </div>
+    <div class="card">
+      <h2>Avg Response Time</h2>
+      <div class="stat-value" id="avg-response">—</div>
+      <div class="stat-sub">minutes</div>
+    </div>
+  </div>
+
+  <!-- Top charts -->
+  <div class="grid charts-top">
+    <div class="card chart-card">
+      <h2>Top Contributors</h2>
+      <div class="chart-wrap"><canvas id="chart-contributors"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <h2>Reactions by Language</h2>
+      <div class="chart-wrap"><canvas id="chart-languages"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Bottom charts -->
+  <div class="grid charts-bottom">
+    <div class="card chart-card">
+      <h2>Avg Response Time per Member (minutes)</h2>
+      <div class="chart-wrap" style="height:200px"><canvas id="chart-response"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <h2>Top Subjects Reported</h2>
+      <div class="chart-wrap" style="height:200px"><canvas id="chart-subjects"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Recent reactions table -->
+  <div class="grid" style="grid-template-columns:1fr; padding-bottom: 40px;">
+    <div class="card">
+      <h2>Recent Reactions</h2>
+      <div class="table-wrap">
+        <table id="reactions-table">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Emoji</th>
+              <th>Language</th>
+              <th>Subject</th>
+              <th>Response Time</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="reactions-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SPREADSHEET_ID = '1qg_BLiydJe9ixh8BW53D42FYx8OTFfkMrbyaBVkvJ5w';
+const COLORS = ['#53fc18','#00c9ff','#ff6b6b','#ffd93d','#c77dff','#ff9a3c','#4ecdc4','#ff6fd8','#a8ff78','#ffecd2'];
+
+function csvURL(sheet) {
+  return `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;
+}
+
+function parseCSV(text) {
+  const rows = [];
+  const lines = text.split('\n');
+  const header = parseRow(lines[0]);
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const vals = parseRow(lines[i]);
+    const obj = {};
+    header.forEach((h, idx) => obj[h] = (vals[idx] || '').trim());
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function parseRow(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur);
+  return result;
+}
+
+function shortName(member) {
+  return member.replace(/#\d{4}$/, '').split('#')[0];
+}
+
+function makeChart(id, type, labels, data, opts = {}) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type,
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: type === 'doughnut' ? COLORS : COLORS[0],
+        borderColor: type === 'bar' ? COLORS[0] : 'transparent',
+        borderWidth: type === 'bar' ? 0 : 0,
+        borderRadius: type === 'bar' ? 4 : 0,
+        hoverBackgroundColor: COLORS,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: type === 'doughnut', labels: { color: '#888', boxWidth: 12, padding: 16 } },
+        tooltip: { backgroundColor: '#1e1e1e', titleColor: '#fff', bodyColor: '#aaa', borderColor: '#333', borderWidth: 1 }
+      },
+      scales: type !== 'doughnut' ? {
+        x: { ticks: { color: '#555', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#555', font: { size: 11 } }, grid: { color: '#1a1a1a' }, beginAtZero: true }
+      } : undefined,
+      indexAxis: opts.horizontal ? 'y' : 'x',
+      ...opts
+    }
+  });
+}
+
+async function load() {
+  try {
+    const [reports, reactions] = await Promise.all([
+      fetch(csvURL('Reports')).then(r => r.text()).then(parseCSV),
+      fetch(csvURL('Reactions')).then(r => r.text()).then(parseCSV),
+    ]);
+
+    if (!reactions.length) throw new Error('No reaction data yet — react to a message in Discord first.');
+
+    // Stat cards
+    document.getElementById('total-reports').textContent = reports.length;
+    document.getElementById('total-reactions').textContent = reactions.length;
+
+    const members = [...new Set(reactions.map(r => r.member))];
+    document.getElementById('active-members').textContent = members.length;
+
+    const times = reactions.map(r => parseFloat(r.response_time_minutes)).filter(n => !isNaN(n));
+    const avgTime = times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : '—';
+    document.getElementById('avg-response').textContent = avgTime;
+
+    // Top contributors
+    const contribCount = {};
+    reactions.forEach(r => { const n = shortName(r.member); contribCount[n] = (contribCount[n] || 0) + 1; });
+    const sortedContrib = Object.entries(contribCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    makeChart('chart-contributors', 'bar', sortedContrib.map(e => e[0]), sortedContrib.map(e => e[1]));
+
+    // By language
+    const langCount = {};
+    reactions.forEach(r => { langCount[r.language] = (langCount[r.language] || 0) + 1; });
+    const sortedLang = Object.entries(langCount).sort((a, b) => b[1] - a[1]);
+    makeChart('chart-languages', 'doughnut', sortedLang.map(e => e[0]), sortedLang.map(e => e[1]));
+
+    // Avg response per member
+    const memberTimes = {};
+    reactions.forEach(r => {
+      const n = shortName(r.member);
+      const t = parseFloat(r.response_time_minutes);
+      if (!isNaN(t)) { if (!memberTimes[n]) memberTimes[n] = []; memberTimes[n].push(t); }
+    });
+    const avgPerMember = Object.entries(memberTimes)
+      .map(([name, ts]) => [name, +(ts.reduce((a, b) => a + b, 0) / ts.length).toFixed(1)])
+      .sort((a, b) => a[1] - b[1]).slice(0, 10);
+    makeChart('chart-response', 'bar', avgPerMember.map(e => e[0]), avgPerMember.map(e => e[1]), { horizontal: true });
+
+    // Subjects
+    const subjectCount = {};
+    reactions.forEach(r => { if (r.subject) subjectCount[r.subject] = (subjectCount[r.subject] || 0) + 1; });
+    const sortedSubjects = Object.entries(subjectCount).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    makeChart('chart-subjects', 'doughnut', sortedSubjects.map(e => e[0]), sortedSubjects.map(e => e[1]));
+
+    // Recent reactions table
+    const tbody = document.getElementById('reactions-tbody');
+    const recent = [...reactions].reverse().slice(0, 25);
+    tbody.innerHTML = recent.map(r => {
+      const dt = r.reacted_at ? new Date(r.reacted_at).toLocaleString() : '—';
+      return `<tr>
+        <td>${shortName(r.member)}</td>
+        <td class="emoji-cell">${r.emoji}</td>
+        <td><span class="badge">${r.language}</span></td>
+        <td style="color:#666">${r.subject || '—'}</td>
+        <td style="color:#53fc18">${r.response_time_minutes} min</td>
+        <td style="color:#444;font-size:12px">${dt}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+
+  } catch (err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('error-msg').textContent = 'Error: ' + err.message;
+  }
+}
+
+load();
+</script>
+</body>
+</html>
