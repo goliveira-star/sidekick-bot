@@ -80,6 +80,7 @@ async def on_ready():
 @client.event
 async def on_message(message: discord.Message):
     channel_name = message.channel.name if hasattr(message.channel, "name") else ""
+    print(f"[DEBUG] Message in channel: '{channel_name}' from {message.author}")
     language = CHANNEL_LANGUAGE_MAP.get(channel_name)
     if not language:
         return  # not a report channel we care about
