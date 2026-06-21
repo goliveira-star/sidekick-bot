@@ -123,6 +123,8 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
     posted_at, language, subject = report_posts[payload.message_id]
     emoji_str = str(payload.emoji)
+    if emoji_str == '👀':
+        return
     reacted_at = datetime.now(timezone.utc)
     response_minutes = round((reacted_at - posted_at).total_seconds() / 60, 1)
 
