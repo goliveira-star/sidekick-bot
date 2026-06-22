@@ -14,6 +14,7 @@
   header h1 span { color: #53fc18; }
   #last-updated { font-size: 12px; color: #555; }
 
+  /* Filters */
   .filters { padding: 16px 32px 0; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .filters label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #555; }
   .filter-group { display: flex; align-items: center; gap: 8px; }
@@ -26,12 +27,25 @@
     min-width: 160px;
   }
   select:hover { border-color: #53fc18; }
+  input[type="date"] {
+    background: #141414; border: 1px solid #2a2a2a; color: #fff;
+    padding: 7px 12px; border-radius: 8px; font-size: 13px;
+    cursor: pointer; outline: none; min-width: 140px;
+    color-scheme: dark;
+  }
+  input[type="date"]:hover { border-color: #53fc18; }
   .filter-reset {
     background: none; border: 1px solid #2a2a2a; color: #555;
     padding: 7px 14px; border-radius: 8px; font-size: 12px; cursor: pointer;
   }
   .filter-reset:hover { border-color: #555; color: #fff; }
   .filter-active-label { font-size: 11px; color: #53fc18; padding: 4px 10px; background: #1e2e1e; border-radius: 99px; }
+  .btn-export {
+    background: #53fc18; color: #0a0a0a; border: none;
+    padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 700;
+    cursor: pointer; margin-left: auto;
+  }
+  .btn-export:hover { background: #6fff35; }
 
   .grid { display: grid; gap: 16px; padding: 16px 32px; }
   .stats { grid-template-columns: repeat(4, 1fr); }
@@ -85,6 +99,7 @@
     <span id="last-updated"></span>
   </header>
 
+  <!-- Filters -->
   <div class="filters">
     <div class="filter-group">
       <label>Language</label>
@@ -98,10 +113,20 @@
         <option value="">All Tags</option>
       </select>
     </div>
+    <div class="filter-group">
+      <label>From</label>
+      <input type="date" id="filter-from" onchange="applyFilters()">
+    </div>
+    <div class="filter-group">
+      <label>To</label>
+      <input type="date" id="filter-to" onchange="applyFilters()">
+    </div>
     <button class="filter-reset" onclick="resetFilters()">Reset filters</button>
     <span id="filter-label" class="filter-active-label" style="display:none"></span>
+    <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
 
+  <!-- Stat cards -->
   <div class="grid stats">
     <div class="card"><h2>Total Reports</h2><div class="stat-value" id="total-reports">—</div><div class="stat-sub">messages logged</div></div>
     <div class="card"><h2>Total Reactions</h2><div class="stat-value" id="total-reactions">—</div><div class="stat-sub">by all members</div></div>
@@ -111,16 +136,19 @@
 
   <div id="no-results">No data matches the selected filters.</div>
 
+  <!-- Top charts -->
   <div class="grid charts-top" id="charts-top">
     <div class="card chart-card"><h2>Top Contributors</h2><div class="chart-wrap"><canvas id="chart-contributors"></canvas></div></div>
     <div class="card chart-card"><h2>Reactions by Language</h2><div class="chart-wrap"><canvas id="chart-languages"></canvas></div></div>
   </div>
 
+  <!-- Bottom charts -->
   <div class="grid charts-bottom" id="charts-bottom">
     <div class="card chart-card"><h2>Avg Response Time per Member (minutes)</h2><div class="chart-wrap" style="height:200px"><canvas id="chart-response"></canvas></div></div>
     <div class="card chart-card"><h2>Top Tags Reported</h2><div class="chart-wrap" style="height:200px"><canvas id="chart-subjects"></canvas></div></div>
   </div>
 
+  <!-- Recent reactions table -->
   <div class="grid" style="grid-template-columns:1fr; padding-bottom: 40px;">
     <div class="card">
       <h2>Recent Reactions</h2>
@@ -217,17 +245,36 @@ function populateFilters() {
 }
 
 function getFiltered() {
-  const lang = document.getElementById('filter-language').value;
-  const tag = document.getElementById('filter-tag').value;
-  const reactions = allReactions.filter(r =>
-    (!lang || r.language === lang) &&
-    (!tag || r.subject === tag)
-  );
-  const reports = allReports.filter(r =>
-    (!lang || r.language === lang) &&
-    (!tag || r.subject === tag)
-  );
-  return { reactions, reports, lang, tag };
+  const lang   = document.getElementById('filter-language').value;
+  const tag    = document.getElementById('filter-tag').value;
+  const from   = document.getElementById('filter-from').value;
+  const to     = document.getElementById('filter-to').value;
+  const fromTs = from ? new Date(from).getTime() : null;
+  const toTs   = to   ? new Date(to + 'T23:59:59').getTime() : null;
+
+  const reactions = allReactions.filter(r => {
+    if (lang && r.language !== lang) return false;
+    if (tag  && r.subject  !== tag)  return false;
+    if (fromTs || toTs) {
+      const t = new Date(r.reacted_at).getTime();
+      if (fromTs && t < fromTs) return false;
+      if (toTs   && t > toTs)   return false;
+    }
+    return true;
+  });
+
+  const reports = allReports.filter(r => {
+    if (lang && r.language !== lang) return false;
+    if (tag  && r.subject  !== tag)  return false;
+    if (fromTs || toTs) {
+      const t = new Date(r.posted_at).getTime();
+      if (fromTs && t < fromTs) return false;
+      if (toTs   && t > toTs)   return false;
+    }
+    return true;
+  });
+
+  return { reactions, reports, lang, tag, from, to };
 }
 
 function renderDashboard(reactions, reports) {
@@ -236,6 +283,7 @@ function renderDashboard(reactions, reports) {
   document.getElementById('charts-top').style.display = hasData ? '' : 'none';
   document.getElementById('charts-bottom').style.display = hasData ? '' : 'none';
 
+  // Stats
   document.getElementById('total-reports').textContent = reports.length;
   document.getElementById('total-reactions').textContent = reactions.length;
   document.getElementById('active-members').textContent = new Set(reactions.map(r => r.member)).size;
@@ -244,16 +292,19 @@ function renderDashboard(reactions, reports) {
 
   if (!hasData) return;
 
+  // Contributors
   const contribCount = {};
   reactions.forEach(r => { const n = shortName(r.member); contribCount[n] = (contribCount[n]||0)+1; });
   const sortedContrib = Object.entries(contribCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
   makeChart('chart-contributors','bar', sortedContrib.map(e=>e[0]), sortedContrib.map(e=>e[1]));
 
+  // By language
   const langCount = {};
   reactions.forEach(r => { langCount[r.language] = (langCount[r.language]||0)+1; });
   const sortedLang = Object.entries(langCount).sort((a,b)=>b[1]-a[1]);
   makeChart('chart-languages','doughnut', sortedLang.map(e=>e[0]), sortedLang.map(e=>e[1]));
 
+  // Avg response per member
   const memberTimes = {};
   reactions.forEach(r => {
     const n = shortName(r.member), t = parseFloat(r.response_time_minutes);
@@ -264,11 +315,13 @@ function renderDashboard(reactions, reports) {
     .sort((a,b)=>a[1]-b[1]).slice(0,10);
   makeChart('chart-response','bar', avgPerMember.map(e=>e[0]), avgPerMember.map(e=>e[1]), {horizontal:true});
 
+  // Tags/subjects
   const subjectCount = {};
   reactions.forEach(r => { if (r.subject) subjectCount[r.subject]=(subjectCount[r.subject]||0)+1; });
   const sortedSubjects = Object.entries(subjectCount).sort((a,b)=>b[1]-a[1]).slice(0,6);
   makeChart('chart-subjects','doughnut', sortedSubjects.map(e=>e[0]), sortedSubjects.map(e=>e[1]));
 
+  // Table
   const tbody = document.getElementById('reactions-tbody');
   tbody.innerHTML = [...reactions].reverse().slice(0,25).map(r => {
     const dt = r.reacted_at ? new Date(r.reacted_at).toLocaleString() : '—';
@@ -285,8 +338,8 @@ function renderDashboard(reactions, reports) {
 }
 
 function applyFilters() {
-  const { reactions, reports, lang, tag } = getFiltered();
-  const parts = [lang, tag].filter(Boolean);
+  const { reactions, reports, lang, tag, from, to } = getFiltered();
+  const parts = [lang, tag, from ? 'From ' + from : '', to ? 'To ' + to : ''].filter(Boolean);
   document.getElementById('filter-label').style.display = parts.length ? '' : 'none';
   document.getElementById('filter-label').textContent = parts.join(' · ');
   renderDashboard(reactions, reports);
@@ -295,7 +348,28 @@ function applyFilters() {
 function resetFilters() {
   document.getElementById('filter-language').value = '';
   document.getElementById('filter-tag').value = '';
+  document.getElementById('filter-from').value = '';
+  document.getElementById('filter-to').value = '';
   applyFilters();
+}
+
+function exportCSV() {
+  const { reactions } = getFiltered();
+  const headers = ['member','emoji','language','subject','response_time_minutes','reacted_at'];
+  const rows = reactions.map(r =>
+    headers.map(h => {
+      const val = h === 'member' ? shortName(r[h]) : (r[h] || '');
+      return '"' + String(val).replace(/"/g, '""') + '"';
+    }).join(',')
+  );
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sidekicks_export_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function load() {
