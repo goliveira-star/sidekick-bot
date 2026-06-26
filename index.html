@@ -181,6 +181,10 @@ function parseCSV(text) {
     const vals = parseRow(lines[i]);
     const obj = {};
     header.forEach((h, idx) => obj[h] = (vals[idx] || '').trim());
+    if (obj.subject) {
+      const s = obj.subject.trim().toLowerCase().replace(/_/g, ' ');
+      obj.subject = s ? s[0].toUpperCase() + s.slice(1) : obj.subject;
+    }
     rows.push(obj);
   }
   return rows;
