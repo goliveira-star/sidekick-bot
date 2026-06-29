@@ -14,7 +14,6 @@
   header h1 span { color: #53fc18; }
   #last-updated { font-size: 12px; color: #555; }
 
-  /* Filters */
   .filters { padding: 16px 32px 0; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .filters label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #555; }
   .filter-group { display: flex; align-items: center; gap: 8px; }
@@ -99,7 +98,6 @@
     <span id="last-updated"></span>
   </header>
 
-  <!-- Filters -->
   <div class="filters">
     <div class="filter-group">
       <label>Language</label>
@@ -126,7 +124,6 @@
     <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
 
-  <!-- Stat cards -->
   <div class="grid stats">
     <div class="card"><h2>Total Reports</h2><div class="stat-value" id="total-reports">—</div><div class="stat-sub">messages logged</div></div>
     <div class="card"><h2>Total Reactions</h2><div class="stat-value" id="total-reactions">—</div><div class="stat-sub">by all members</div></div>
@@ -136,25 +133,22 @@
 
   <div id="no-results">No data matches the selected filters.</div>
 
-  <!-- Top charts -->
   <div class="grid charts-top" id="charts-top">
     <div class="card chart-card"><h2>Top Contributors</h2><div class="chart-wrap"><canvas id="chart-contributors"></canvas></div></div>
     <div class="card chart-card"><h2>Reactions by Language</h2><div class="chart-wrap"><canvas id="chart-languages"></canvas></div></div>
   </div>
 
-  <!-- Bottom charts -->
   <div class="grid charts-bottom" id="charts-bottom">
     <div class="card chart-card"><h2>Avg Response Time per Member (minutes)</h2><div class="chart-wrap" style="height:200px"><canvas id="chart-response"></canvas></div></div>
     <div class="card chart-card"><h2>Top Tags Reported</h2><div class="chart-wrap" style="height:200px"><canvas id="chart-subjects"></canvas></div></div>
   </div>
 
-  <!-- Recent reactions table -->
   <div class="grid" style="grid-template-columns:1fr; padding-bottom: 40px;">
     <div class="card">
       <h2>Recent Reactions</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Member</th><th>Emoji</th><th>Language</th><th>Tag</th><th>Response Time</th><th>Time</th></tr></thead>
+          <thead><tr><th>Member</th><th>Emoji</th><th>Language</th><th>Tag</th><th>Response Time</th><th>Time (Melbourne)</th></tr></thead>
           <tbody id="reactions-tbody"></tbody>
         </table>
       </div>
@@ -287,7 +281,6 @@ function renderDashboard(reactions, reports) {
   document.getElementById('charts-top').style.display = hasData ? '' : 'none';
   document.getElementById('charts-bottom').style.display = hasData ? '' : 'none';
 
-  // Stats
   document.getElementById('total-reports').textContent = reports.length;
   document.getElementById('total-reactions').textContent = reactions.length;
   document.getElementById('active-members').textContent = new Set(reactions.map(r => r.member)).size;
@@ -296,19 +289,16 @@ function renderDashboard(reactions, reports) {
 
   if (!hasData) return;
 
-  // Contributors
   const contribCount = {};
   reactions.forEach(r => { const n = shortName(r.member); contribCount[n] = (contribCount[n]||0)+1; });
   const sortedContrib = Object.entries(contribCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
   makeChart('chart-contributors','bar', sortedContrib.map(e=>e[0]), sortedContrib.map(e=>e[1]));
 
-  // By language
   const langCount = {};
   reactions.forEach(r => { langCount[r.language] = (langCount[r.language]||0)+1; });
   const sortedLang = Object.entries(langCount).sort((a,b)=>b[1]-a[1]);
   makeChart('chart-languages','doughnut', sortedLang.map(e=>e[0]), sortedLang.map(e=>e[1]));
 
-  // Avg response per member
   const memberTimes = {};
   reactions.forEach(r => {
     const n = shortName(r.member), t = parseFloat(r.response_time_minutes);
@@ -319,16 +309,14 @@ function renderDashboard(reactions, reports) {
     .sort((a,b)=>a[1]-b[1]).slice(0,10);
   makeChart('chart-response','bar', avgPerMember.map(e=>e[0]), avgPerMember.map(e=>e[1]), {horizontal:true});
 
-  // Tags/subjects
   const subjectCount = {};
   reactions.forEach(r => { if (r.subject) subjectCount[r.subject]=(subjectCount[r.subject]||0)+1; });
   const sortedSubjects = Object.entries(subjectCount).sort((a,b)=>b[1]-a[1]).slice(0,6);
   makeChart('chart-subjects','doughnut', sortedSubjects.map(e=>e[0]), sortedSubjects.map(e=>e[1]));
 
-  // Table
   const tbody = document.getElementById('reactions-tbody');
   tbody.innerHTML = [...reactions].reverse().slice(0,25).map(r => {
-    const dt = r.reacted_at ? new Date(r.reacted_at).toLocaleString() : '—';
+    const dt = r.reacted_at ? new Date(r.reacted_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }) : '—';
     const tag = r.subject && r.subject !== 'Unknown' ? `<span class="badge badge-tag">${r.subject}</span>` : `<span style="color:#333">—</span>`;
     return `<tr>
       <td>${shortName(r.member)}</td>
