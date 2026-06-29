@@ -1,6 +1,7 @@
 import discord
 import os
 import json
+import re
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timezone
@@ -66,22 +67,53 @@ report_posts = {}
 
 
 def parse_subject(message: discord.Message) -> str:
-    content = message.content or ""
+    parts = []
+    if message.content:
+        parts.append(message.content)
     for embed in message.embeds:
         if embed.description:
-            content += " " + embed.description
+            parts.append(embed.description)
         for field in embed.fields:
-            content += " " + field.name + " " + field.value
+            parts.append(f"{field.name}: {field.value}")
+    content = "\n".join(parts)
+
+    # Primary: extract directly from "Report Reason: <tag>"
+    match = re.search(r'report reason[:\s]+(.+)', content, re.IGNORECASE)
+    if match:
+        reason = match.group(1).strip().split('\n')[0].strip()
+        if reason:
+            return reason.title()
+
+    # Fallback: keyword scan (longer phrases first to avoid partial matches)
     lower = content.lower()
     subjects = [
-        "violence", "serious unlawful conduct", "terrorism", "nudity", "pornography", "hate speech",
-        "self-harm", "doxxing", "fraud", "game hacking", "harassment",
-        "protection of minors", "lawfulness", "rights", "child endangerment", "bullying",
-        "sexually explicit content", "false sensationalism", "hate",
+        "sexually explicit content",
+        "intellectual property violation",
+        "bullying or harassment",
+        "misleading or abusive tags",
+        "fraud and deception",
+        "serious unlawful conduct",
+        "protection of minors",
+        "child endangerment",
+        "false sensationalism",
+        "game hacking",
+        "hate speech",
+        "self-harm",
+        "doxxing",
+        "violence",
+        "terrorism",
+        "nudity",
+        "pornography",
+        "harassment",
+        "lawfulness",
+        "bullying",
+        "rights",
+        "fraud",
+        "hate",
     ]
     for s in subjects:
         if s in lower:
-            return s.replace('_', ' ').title()
+            return s.title()
     return "Unknown"
 
 
