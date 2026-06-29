@@ -19,7 +19,6 @@ CHANNEL_LANGUAGE_MAP = {
     "spanish":          "Spanish",
     "turkish":          "Turkish",
     "japanese":         "Japanese",
-    "other-moderation": "Other",
     "indian":           "Indian",
 }
 # ─────────────────────────────────────────────────────────
