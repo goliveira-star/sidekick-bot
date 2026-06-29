@@ -76,7 +76,7 @@ def parse_subject(message: discord.Message) -> str:
     subjects = [
         "violence", "serious_unlawful_conduct", "terrorism", "nudity", "pornography", "hate speech",
         "self-harm", "doxxing", "fraud", "game hacking", "harassment",
-        "protection of minors", "lawfulness", "rights", "child endangerment", "bullying", "false sensationalism", "hate",
+        "protection of minors", "lawfulness", "rights", "child endangerment", "bullying", "sexually_explicit_content", "false sensationalism", "hate",
     ]
     for s in subjects:
         if s in lower:
