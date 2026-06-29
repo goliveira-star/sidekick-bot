@@ -4,26 +4,28 @@ import json
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import gspread
 from google.oauth2.service_account import Credentials
 
+MELBOURNE_TZ = ZoneInfo("Australia/Melbourne")
+
 # ── CONFIG ────────────────────────────────────────────────
 CHANNEL_LANGUAGE_MAP = {
-    "arabic":           "Arabic",
-    "french":           "French",
-    "german":           "German",
-    "korean":           "Korean",
-    "polish":           "Polish",
-    "russian":          "Russian",
-    "spanish":          "Spanish",
-    "turkish":          "Turkish",
-    "japanese":         "Japanese",
-    "indian":           "Indian",
+    "arabic":    "Arabic",
+    "french":    "French",
+    "german":    "German",
+    "korean":    "Korean",
+    "polish":    "Polish",
+    "russian":   "Russian",
+    "spanish":   "Spanish",
+    "turkish":   "Turkish",
+    "japanese":  "Japanese",
+    "indian":    "Indian",
 }
 # ─────────────────────────────────────────────────────────
 
-# Google Sheets setup
 def init_sheets():
     creds_json = os.environ.get("GOOGLE_CREDENTIALS")
     spreadsheet_id = os.environ.get("SPREADSHEET_ID")
@@ -36,7 +38,6 @@ def init_sheets():
     gc = gspread.authorize(creds)
     spreadsheet = gc.open_by_key(spreadsheet_id)
 
-    # Get or create the two sheets
     try:
         reports_ws = spreadsheet.worksheet("Reports")
     except gspread.WorksheetNotFound:
@@ -61,7 +62,6 @@ intents.reactions = True
 
 client = discord.Client(intents=intents)
 
-# In-memory store: message_id → (posted_at, language, subject)
 report_posts = {}
 
 
@@ -74,9 +74,10 @@ def parse_subject(message: discord.Message) -> str:
             content += " " + field.name + " " + field.value
     lower = content.lower()
     subjects = [
-        "violence", "serious_unlawful_conduct", "terrorism", "nudity", "pornography", "hate speech",
+        "violence", "serious unlawful conduct", "terrorism", "nudity", "pornography", "hate speech",
         "self-harm", "doxxing", "fraud", "game hacking", "harassment",
-        "protection of minors", "lawfulness", "rights", "child endangerment", "bullying", "sexually_explicit_content", "false sensationalism", "hate",
+        "protection of minors", "lawfulness", "rights", "child endangerment", "bullying",
+        "sexually explicit content", "false sensationalism", "hate",
     ]
     for s in subjects:
         if s in lower:
@@ -102,7 +103,7 @@ async def on_message(message: discord.Message):
 
     reports_ws.append_row([
         str(message.id), channel_name, language, subject,
-        posted_at.isoformat()
+        posted_at.astimezone(MELBOURNE_TZ).isoformat()
     ])
     print(f"Logged report: {subject} in {language}")
 
@@ -131,7 +132,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         str(payload.message_id),
         str(member),
         emoji_str,
-        reacted_at.isoformat(),
+        reacted_at.astimezone(MELBOURNE_TZ).isoformat(),
         response_minutes,
         language,
         subject,
