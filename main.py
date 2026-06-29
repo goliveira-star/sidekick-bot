@@ -74,7 +74,7 @@ def parse_subject(message: discord.Message) -> str:
             content += " " + field.name + " " + field.value
     lower = content.lower()
     subjects = [
-        "violence", "terrorism", "nudity", "pornography", "hate speech",
+        "violence", "serious_unlawful_conduct", "terrorism", "nudity", "pornography", "hate speech",
         "self-harm", "doxxing", "fraud", "game hacking", "harassment",
         "protection of minors", "lawfulness", "rights", "child endangerment", "bullying", "false sensationalism", "hate",
     ]
