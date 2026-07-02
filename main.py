@@ -80,7 +80,7 @@ def parse_subject(message: discord.Message) -> str:
     # Primary: extract directly from "Report Reason: <tag>"
     match = re.search(r'report reason[:\s]+(.+)', content, re.IGNORECASE)
     if match:
-        reason = match.group(1).strip().split('\n')[0].strip()
+        reason = match.group(1).strip().split('\n')[0].strip().strip('`').strip()
         if reason:
             return reason.title()
 
